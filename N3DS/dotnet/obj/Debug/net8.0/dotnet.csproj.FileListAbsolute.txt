@@ -1,0 +1,12 @@
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.GeneratedMSBuildEditorConfig.editorconfig
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.AssemblyInfoInputs.cache
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.AssemblyInfo.cs
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.csproj.CoreCompileInputs.cache
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/bin/Debug/net8.0/dotnet.deps.json
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/bin/Debug/net8.0/dotnet.dll
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/bin/Debug/net8.0/dotnet.pdb
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.dll
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/refint/dotnet.dll
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.pdb
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/ref/dotnet.dll
+/home/deck/CartridgeTiltRetro/N3DS/dotnet/obj/Debug/net8.0/dotnet.csproj.AssemblyReference.cache
