@@ -52,3 +52,5 @@ string Game.Description
 string CTRGame::Description
 string Game.Version
 string CTRGame::Version
+ScreenInfo Platform.GetScreen
+ScreenInfo Platform::GetScreen
