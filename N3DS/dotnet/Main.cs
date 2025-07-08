@@ -485,6 +485,7 @@ int main(int argc, char* argv[]) {
         for (CTREntry* entry : entryPoints) {
             entry->OnFrame();
         }
+        Coroutiner::Update();
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
         C2D_SceneBegin(top);
