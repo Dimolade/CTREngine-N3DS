@@ -13,22 +13,6 @@ class Log
 private:
     static std::string DebugLog;
 
-    static void EnsurePathExists(const std::string& fullPath)
-    {
-        std::string path;
-        std::stringstream ss(fullPath);
-        std::string segment;
-
-        while (std::getline(ss, segment, '/')) {
-            if (segment.empty() || segment.find('.') != std::string::npos)
-                continue;
-
-            path += segment + "/";
-
-            mkdir(path.c_str(), 0777);
-        }
-    }
-
 public:
     static inline void Append(const std::string& toAppend)
     {
@@ -41,7 +25,7 @@ public:
     }
     static inline void Save()
     {
-        EnsurePathExists(GetDirectory());
+        CTRFiles::MakePath(GetDirectory());
         FILE* file = fopen(GetLocation().c_str(), "w");
         if (file) {
             fputs(Get().c_str(), file);

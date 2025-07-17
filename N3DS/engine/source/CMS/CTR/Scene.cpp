@@ -48,6 +48,11 @@ void Scene::AddSceneObject(GameAsset* asset)
     GameAssets.push_back(asset);
 }
 
+void Scene::AddCamera(CTRCamera* asset)
+{
+    CAMERAS.push_back(asset);
+}
+
 CTRImage* Scene::ConstCTRImage(const std::string& name, const std::string& Namespace, const std::string& spriteName)
 {
     CTRImage* img = new CTRImage(spriteName, true, false, Vector3(0,0,0), Vector3(1,1,1), Vector3(0,0,0), name, Namespace, true, {255,255,255,255,0.0f} );
@@ -78,4 +83,10 @@ CTRImageFont* Scene::ConstCTRImageFont(const std::string& name, const std::strin
         }
     }
     return font;
+}
+
+CTRCamera* Scene::ConstCTRCamera(const int& screenIndex);
+{
+    CTRCamera* ctrcam = new CTRCamera(Vector3(0,0,0), Vector3(0,0,0), Vector3(0,0,0), true, {0,0,0,255,0.0f}, CTRScissor(2, Vector2(0,0), Vector2(0,0)), "");
+    return ctrcam;
 }

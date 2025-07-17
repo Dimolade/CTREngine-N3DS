@@ -34,6 +34,12 @@ struct Vector3 {
         this->y += other.y;
         return *this;
     }
+    Vector3& operator+=(const Vector3& other) {
+        this->x += other.x;
+        this->y += other.y;
+        this->z += other.z;
+        return *this;
+    }
 
     // Overload * operator to scale Vector3 by a scalar
     Vector3 operator*(float scalar) const {
@@ -65,13 +71,20 @@ public:
         Font,
         Sound,
         Other,
-        ImageFont
+        ImageFont,
+        Camera
     };
 
     enum class AssetSortType { // Cambiado a enum class
         Name,
         AssetType,
         Both
+    };
+
+    enum class CTRScissorMode {
+        Inside = 0,
+        Outside = 1,
+        None = 2
     };
 };
 

@@ -486,82 +486,12 @@ int main(int argc, char* argv[]) {
             entry->OnFrame();
         }
         Coroutiner::Update();
-        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-        C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
-        C2D_SceneBegin(top);
-        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
 
-        for (GameAsset* asset : GameAssets) {
-            if (asset->screenIndex == 1)
-                continue;
-            switch (asset->type) {
-                case Enums::AssetType::Image: {
-                    CTRImage* image = static_cast<CTRImage*>(asset);
-                    if (image) {
-                        image->render();
-                    }
-                    break;
-                }
-
-                case Enums::AssetType::Font:
-                    // Add font rendering logic here
-                    break;
-
-                case Enums::AssetType::ImageFont: {
-                    CTRImageFont* font = static_cast<CTRImageFont*>(asset);
-                    if (font)
-                    {
-                        font->render();
-                    }
-                    break;
-                }
-
-                default:
-                    //std::cout << ""Unknown asset type."" << std::endl;
-                    break;
-            }
-        }
-
-        C2D_TargetClear(bottom, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
-        C2D_SceneBegin(bottom);
-        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
-
-        for (GameAsset* asset : GameAssets) {
-            if (asset->screenIndex == 0)
-                continue;
-            switch (asset->type) {
-                case Enums::AssetType::Image: {
-                    CTRImage* image = static_cast<CTRImage*>(asset);
-                    if (image->screenIndex == 2)
-                    {
-                        image->renderAt({image->position.x-40, image->position.y-240, image->position.z});
-                    }
-                    else
-                    {
-                        image->render();
-                    }
-                    break;
-                }
-                case Enums::AssetType::Sound:
-                    // Add sound playback logic here
-                    break;
-
-                case Enums::AssetType::Font:
-                    // Add font rendering logic here
-                    break;
-
-                case Enums::AssetType::ImageFont: {
-                    CTRImageFont* font = static_cast<CTRImageFont*>(asset);
-                    if (font)
-                    {
-                        font->render();
-                    }
-                    break;
-                }
-
-                default:
-                    //std::cout << ""Unknown asset type."" << std::endl;
-                    break;
+        for (CTRCamera* camera : CAMERAS)
+        {
+            if (camera->AutoRender)
+            {
+                camera->Render();
             }
         }
 

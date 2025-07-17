@@ -13,7 +13,7 @@
 #include <vector>
 #include <3ds.h>
 
-#include "CMS/BoardBuilder.hpp"
+#include "CMS/RenderTest.hpp"
 
 
 // Dimolade File version 5
@@ -28,7 +28,7 @@ std::vector<GameAsset*> GameAssets;
 void CTRScene::InitScene() {
 GameAssets.reserve(1);
 GameAssets = {
-new GameAsset(Enums::AssetType::Script, "BoardBuilder",true,"BB","CMS",0)
+new GameAsset(Enums::AssetType::Script, "RenderTest",true,"Script","Scripts",0)
 };
 };
 
@@ -54,7 +54,7 @@ void initLibraries() {
     CTRScene::InitScene();
     CTRBlobbyFonts::InitFonts();
 
-    PatienceStarter* CMSBB = new PatienceStarter();
+    RenderTest* Script = new RenderTest();
 
 
     for (GameAsset* asset : GameAssets) {
@@ -167,82 +167,13 @@ int main(int argc, char* argv[]) {
         for (CTREntry* entry : entryPoints) {
             entry->OnFrame();
         }
-        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-        C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
-        C2D_SceneBegin(top);
-        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+        Coroutiner::Update();
 
-        for (GameAsset* asset : GameAssets) {
-            if (asset->screenIndex == 1)
-                continue;
-            switch (asset->type) {
-                case Enums::AssetType::Image: {
-                    CTRImage* image = static_cast<CTRImage*>(asset);
-                    if (image) {
-                        image->render();
-                    }
-                    break;
-                }
-
-                case Enums::AssetType::Font:
-                    // Add font rendering logic here
-                    break;
-
-                case Enums::AssetType::ImageFont: {
-                    CTRImageFont* font = static_cast<CTRImageFont*>(asset);
-                    if (font)
-                    {
-                        font->render();
-                    }
-                    break;
-                }
-
-                default:
-                    //std::cout << "Unknown asset type." << std::endl;
-                    break;
-            }
-        }
-
-        C2D_TargetClear(bottom, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
-        C2D_SceneBegin(bottom);
-        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
-
-        for (GameAsset* asset : GameAssets) {
-            if (asset->screenIndex == 0)
-                continue;
-            switch (asset->type) {
-                case Enums::AssetType::Image: {
-                    CTRImage* image = static_cast<CTRImage*>(asset);
-                    if (image->screenIndex == 2)
-                    {
-                        image->renderAt({image->position.x-40, image->position.y-240, image->position.z});
-                    }
-                    else
-                    {
-                        image->render();
-                    }
-                    break;
-                }
-                case Enums::AssetType::Sound:
-                    // Add sound playback logic here
-                    break;
-
-                case Enums::AssetType::Font:
-                    // Add font rendering logic here
-                    break;
-
-                case Enums::AssetType::ImageFont: {
-                    CTRImageFont* font = static_cast<CTRImageFont*>(asset);
-                    if (font)
-                    {
-                        font->render();
-                    }
-                    break;
-                }
-
-                default:
-                    //std::cout << "Unknown asset type." << std::endl;
-                    break;
+        for (CTRCamera* camera : CAMERAS)
+        {
+            if (camera->AutoRender)
+            {
+                camera->Render();
             }
         }
 

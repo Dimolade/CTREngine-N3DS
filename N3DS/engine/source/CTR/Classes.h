@@ -13,9 +13,11 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
+#include "lodepng.h"
 
 using namespace std;
 using namespace Vectors;
+using namespace Enums;
 
 class CTREntry;
 
@@ -65,10 +67,170 @@ public:
     Vector3 position;
     Vector3 size;
     Vector3 rotation;
+    CTRAxyz* Link;
+protected:
+    Vector3 renderPosition;
+    Vector3 renderSize;
+    Vector3 renderRotation;
+
+    void UpdateLink()
+    {
+        if (Link == nullptr)
+        {
+            renderPosition = position;
+            renderRotation = rotation;
+            renderSize = size;
+            return;
+        }
+
+        Vector3 parentRot = Link->renderRotation;
+
+        Vector3 rotatedPos = RotatePoint(position, parentRot);
+
+        renderPosition = Link->renderPosition + rotatedPos;
+
+        renderRotation = Link->renderRotation + rotation;
+
+        renderSize = Link->renderSize * size;
+    }
+
+    Vector3 RotatePoint(Vector3 point, Vector3 rotDegrees)
+    {
+        Vector3 result = point;
+
+        float rx = rotDegrees.x * (M_PI / 180.0f);
+        float ry = rotDegrees.y * (M_PI / 180.0f);
+        float rz = rotDegrees.z * (M_PI / 180.0f);
+
+        float x1 = result.x * cos(rz) - result.y * sin(rz);
+        float y1 = result.x * sin(rz) + result.y * cos(rz);
+        result.x = x1; result.y = y1;
+
+        float z1 = result.z * cos(ry) - result.x * sin(ry);
+        float x2 = result.z * sin(ry) + result.x * cos(ry);
+        result.z = z1; result.x = x2;
+
+        float y2 = result.y * cos(rx) - result.z * sin(rx);
+        float z2 = result.y * sin(rx) + result.z * cos(rx);
+        result.y = y2; result.z = z2;
+
+        return result;
+    }
+public:
 
     //CTRAxyz(Vector3 p, Vector3 s, Vector3 r) : position(p), size(s), rotation(r) {}
     CTRAxyz(Vector3 p, Vector3 s, Vector3 r, Enums::AssetType t, string ap, bool il = false, string n = "default", string nspace = "default", int sI = 0)
     : position(p), size(s), rotation(r), GameAsset(t,ap,il,n,nspace,sI) {}
+};
+
+class CTRCamera;
+
+extern vector<CTRCamera*> CAMERAS;
+
+struct CTRScissor
+{
+public:
+    CTRScissorMode mode;
+    Vector2 position;
+    Vector2 dimensions;
+
+    void Set()
+    {
+        set_scissor(mode, position.x, position.y, dimensions.x, dimensions.y);
+    }
+
+    CTRScissor(CTRScissorMode m, Vector2 pos, Vector2 dim) : mode(m), position(pos), dimensions(dim) {}
+
+private:
+    void set_scissor(GPU_SCISSORMODE mode, int x, int y, int width, int height) {
+        int inv_y = SCREEN_HEIGHT - (y + height);
+        int inv_x = SCREEN_WIDTH - (x + width);
+
+        C2D_Flush();
+
+        C3D_SetScissor(mode,
+            inv_y,            // left (Y min)
+            inv_x,                // top (X min)
+            inv_y + height,    // right (Y max)
+            inv_x + width    // bottom (X max)
+        );
+    }
+};
+
+class CTRCamera
+{
+public:
+    bool AutoRender = true;
+    Color color;
+    CTRScissor Scissoring;
+    Vector3 position;
+    Vector3 rotation;
+    Vector3 size;
+    string RenderSpace = "";
+
+    CTRCamera(Vector3 p, Vector3 s, Vector3 r, bool AR, Color c, CTRScissor s, string rs) :
+    AutoRender(AR), color(c), Scissoring(s), position(p), rotation(r), size(s), RenderSpace(rs) {}
+
+    void PrepareRender()
+    {
+        Scissoring.Set();
+        switch (screenIndex)
+        {
+            case 0: // upper screen
+                C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+                C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
+                C2D_SceneBegin(top);
+                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+            break;
+            case 1:
+                C2D_TargetClear(bottom, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
+                C2D_SceneBegin(bottom);
+                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+            break;
+        }
+    }
+
+    void Render()
+    {
+        PrepareRender();
+        for (GameAsset* asset : GameAssets) {
+            RenderObject(asset);
+        }
+    }
+
+    void RenderObject(GameAsset* asset)
+    {
+        if (asset->screenIndex != screenIndex)
+                return;
+        if (asset->Namespace.rfind(RenderSpace, 0) != 0 && RenderSpace != "")
+        {
+            return;
+        }
+        switch (asset->type) {
+            case Enums::AssetType::Image: {
+                CTRImage* image = static_cast<CTRImage*>(asset);
+                if (image) {
+                    image->UpdateLink();
+                    image->UpdateProperties();
+                    image->renderPosition += position;
+                    image->render();
+                }
+                break;
+            }
+
+            case Enums::AssetType::ImageFont: {
+                CTRImageFont* font = static_cast<CTRImageFont*>(asset);
+                if (font)
+                {
+                    font->UpdateLink();
+                    font->UpdateProperties();
+                    font->renderPosition += position;
+                    font->render();
+                }
+                break;
+            }
+        }
+    }
 };
 
 class CTRGraphic : public CTRAxyz
@@ -196,6 +358,7 @@ public:
         textH->rz = rotation.z;
         textH->col = color;
         textH->SetText(Text);
+        UpdateLink();
     }
 
     int GetLengthInPX()
@@ -272,6 +435,70 @@ struct TrackedSpriteSheet {
     static std::vector<TrackedSpriteSheet*> LoadedSS;
 };
 
+class C2DImageLoaderC2D
+{
+    static bool loadPngImage(C2D_Image* image, string path) {
+        //char path[128] = "sdmc:/22.png";
+        //snprintf(path, sizeof(path), "/3ds/switch/icons/%016llX.png", titleId);
+
+        unsigned char* pngData = NULL;
+        unsigned width = 0, height = 0;
+        unsigned error = lodepng_decode32(&pngData, &width, &height, path.data(), path.size());
+
+        if (error || pngData == NULL) {
+            return false;
+        }
+
+        if (width != ICON_WIDTH || height != ICON_HEIGHT) {
+            free(pngData);
+            return false;
+        }
+
+        C3D_Tex* tex = (C3D_Tex*)linearAlloc(sizeof(C3D_Tex));
+        Tex3DS_SubTexture* subtex = (Tex3DS_SubTexture*)linearAlloc(sizeof(Tex3DS_SubTexture));
+        if (!tex || !subtex) {
+            if (tex) linearFree(tex);
+            if (subtex) linearFree(subtex);
+            free(pngData);
+            return false;
+        }
+
+
+        C3D_TexInit(tex, TEX_SIZE, TEX_SIZE, GPU_RGBA8);
+        C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
+        tex->border = 0xFFFFFFFF;
+
+        for (u32 y = 0; y < height; y++) {
+            for (u32 x = 0; x < width; x++) {
+                u32 dstPos = ((((y >> 3) * (TEX_SIZE >> 3) + (x >> 3)) << 6) +
+                            ((x & 1) | ((y & 1) << 1) | ((x & 2) << 1) |
+                            ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3))) * 4;
+                u32 srcPos = (y * width + x) * 4;
+                u8* dst = (u8*)tex->data + dstPos;
+
+                dst[0] = pngData[srcPos + 3]; // Alpha
+                dst[1] = pngData[srcPos + 2]; // Blue
+                dst[2] = pngData[srcPos + 1]; // Green
+                dst[3] = pngData[srcPos + 0]; // Red
+            }
+        }
+
+
+        *subtex = (Tex3DS_SubTexture){
+            .width  = ICON_WIDTH,
+            .height = ICON_HEIGHT,
+            .left   = 0.0f,
+            .top    = 1.0f,
+            .right  = ICON_WIDTH / (float)TEX_SIZE,
+            .bottom = 1.0f - (ICON_HEIGHT / (float)TEX_SIZE)
+        };
+
+        *image = (C2D_Image){ tex, subtex };
+        free(pngData);
+        return true;
+    }
+};
+
 class CTRImage : public CTRGraphic {
 public:
     int index = 0;
@@ -282,6 +509,7 @@ public:
         if (spriteSheet) {
             spriteSheet->users--;
 			TrackedSpriteSheet::Cleanup();
+            spriteSheet = nullptr;
         }
     }
 
@@ -302,6 +530,21 @@ public:
         index(ind)
     {
         initSprite();
+    }
+
+    public void ChangeSpriteFromPNG(string content)
+    {
+        C2D_Image img;
+        bool success = C2DImageLoaderC2D::loadPngImage(&img, content);
+        if (success)
+        {
+            if (spriteSheet) {
+                spriteSheet->users--;
+                TrackedSpriteSheet::Cleanup();
+                spriteSheet = nullptr;
+            }
+            C2D_SpriteFromImage(&spr, img);
+        }
     }
 
     void initSprite() {
@@ -365,9 +608,10 @@ public:
     }
 
     void UpdateProperties() {
-        C2D_SpriteSetPos(&spr, position.x, position.y);
-        C2D_SpriteSetRotationDegrees(&spr, rotation.z);
-        C2D_SpriteSetScale(&spr, size.x, size.y);
+        UpdateLink();
+        C2D_SpriteSetPos(&spr, renderPosition.x, renderPosition.y);
+        C2D_SpriteSetRotationDegrees(&spr, renderRotation.z);
+        C2D_SpriteSetScale(&spr, renderSize.x, renderSize.y);
         GetColor();
     }
 

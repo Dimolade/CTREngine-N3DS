@@ -19,10 +19,13 @@ public:
     static CTRSound* GetCTRSound(const std::string& name, const std::string& Namespace);
     static void AddSceneObject(GameAsset* asset);
 
+    static void AddCamera(CTRCamera* cam);
+
     //const
     static CTRImage* ConstCTRImage(const std::string& name, const std::string& Namespace, const std::string& spriteName);
     static CTRSound* ConstCTRSound(const std::string& name, const std::string& Namespace, const std::string& soundName);
     static CTRImageFont* ConstCTRImageFont(const std::string& name, const std::string& Namespace, const std::string& spriteName, const std::string& text = "");
+    static CTRCamera* ConstCTRCamera(const int& screenIndex);
 };
 
 #endif // SCENE_H
