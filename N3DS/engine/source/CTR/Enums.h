@@ -40,6 +40,41 @@ struct Vector3 {
         this->z += other.z;
         return *this;
     }
+	
+	Vector3& operator+(const Vector3& other) {
+        this->x += other.x;
+        this->y += other.y;
+        this->z += other.z;
+        return *this;
+    }
+	
+	Vector3& operator-=(const Vector3& other) {
+        this->x -= other.x;
+        this->y -= other.y;
+        this->z -= other.z;
+        return *this;
+    }
+	
+	Vector3& operator-(const Vector3& other) {
+        this->x -= other.x;
+        this->y -= other.y;
+        this->z -= other.z;
+        return *this;
+    }
+	
+	Vector3& operator*=(const Vector3& other) {
+        this->x -= other.x;
+        this->y -= other.y;
+        this->z -= other.z;
+        return *this;
+    }
+	
+	Vector3& operator*(const Vector3& other) {
+        this->x *= other.x;
+        this->y *= other.y;
+        this->z *= other.z;
+        return *this;
+    }
 
     // Overload * operator to scale Vector3 by a scalar
     Vector3 operator*(float scalar) const {
@@ -82,10 +117,12 @@ public:
     };
 
     enum class CTRScissorMode {
-        Inside = 0,
+        Inside = 3,
         Outside = 1,
-        None = 2
+        None = 0
     };
 };
+
+using CTRScissorMode = Enums::CTRScissorMode;
 
 #endif // ENUMS_H

@@ -1,4 +1,5 @@
 #include "BlobbyAudio.h"
+#include "CMS/CTR/Debug.hpp"
 
 #define THREAD_STACK_SIZE (32 * 1024)
 
@@ -58,28 +59,61 @@ bool BlobbyAudio::LoadPCM(const std::vector<int16_t>& pcmData, int sampleRate, b
 }
 
 bool BlobbyAudio::LoadClip(const std::string& path) {
+	Log::Append("Loading Clip "+path+"\n");
+    Log::Save();
     Stop();
     freeResources();
+	Log::Append("Continue Loading Clip.\n");
+    Log::Save();
     int ch = allocateChannel();
     if (ch == -1) {
         printf("No free DSP channels available!\n");
+        Log::Append("No free DSP Channel available.\n");
+        Log::Save();
         return false;
     }
+	Log::Append("Set Channel.\n");
+    Log::Save();
     dspChannel = ch;
     fileHandle = fopen(path.c_str(), "rb");
     if (!fileHandle) {
         printf("Failed to open file: %s\n", path.c_str());
+        Log::Append("Failed to open "+path+"\n");
+        Log::Save();
         return false;
     }
+	
+	Log::Append("Opened File, opening ogg.\n");
+    Log::Save();
 
     int error = ov_open(fileHandle, &vorbisFile, NULL, 0);
+	Log::Append("Finish Ogg Open.\n");
+    Log::Save();
     if (error) {
         printf("Failed to decode Ogg Vorbis: %s\n", path.c_str());
         fclose(fileHandle);
+        Log::Append("Failed to decode Vorbis file.\n");
+        Log::Save();
         return false;
     }
 
-    return initNDSP();
+    Log::Append("No Errors so far, initting NDSP.\n");
+    Log::Save();
+
+    bool fi = initNDSP();
+
+    if (!fi)
+    {
+        Log::Append("Failed initting NDSP.\n");
+        Log::Save();
+    }
+    else
+    {
+        Log::Append("Audio fully Loaded!\n");
+        Log::Save();
+    }
+
+    return fi;
 }
 
 bool BlobbyAudio::initNDSP() {
@@ -98,7 +132,9 @@ bool BlobbyAudio::initNDSP() {
 
     audioBuffer = (int16_t*)linearAlloc(bufferSize);
     if (!audioBuffer) {
-        printf("Failed to allocate audio buffer\n");
+        Log::Append("Failed to allocate audio buffer.\n");
+        Log::Save();
+        printf("Failed to allocate audio buffer.\n");
         return false;
     }
 
@@ -150,7 +186,9 @@ void BlobbyAudio::Play() {
 }
 
 void BlobbyAudio::Stop() {
-    // Signal the audio thread to exit
+    // Stop the audio thread safely
+	Log::Append("Stop Called.\n");
+    Log::Save();
     if (audioThreadId) {
         quit = true;
         LightEvent_Signal(&audioEvent);  // Wake the thread if it's waiting
@@ -160,15 +198,14 @@ void BlobbyAudio::Stop() {
         audioThreadId = 0;
     }
 
-    // Reset DSP channel — this will stop playback and release buffers
+    // Reset current position and set to paused
     currentSampleIndex = 0;
-    ndspChnReset(dspChannel);
-    freeChannel(dspChannel);
-    dspChannel = 0;
+    paused = true;
 
-    // Clean up Vorbis state and allocated resources
-    ov_clear(&vorbisFile);
-    freeResources();
+    // Stop DSP playback (don't release buffers or destroy DSP channel)
+    ndspChnReset(dspChannel);
+
+    // NOTE: Do NOT call freeChannel(), ov_clear(), or freeResources() here
 }
 
 void BlobbyAudio::Pause() {
@@ -186,6 +223,8 @@ bool BlobbyAudio::IsPlaying() {
 }
 
 void BlobbyAudio::freeResources() {
+	Log::Append("Freeing Resources.\n");
+    Log::Save();
     if (audioBuffer) {
         linearFree(audioBuffer);
         audioBuffer = nullptr;

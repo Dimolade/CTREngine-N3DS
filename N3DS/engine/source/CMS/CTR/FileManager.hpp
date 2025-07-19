@@ -16,19 +16,24 @@ class CTRFiles
 {
 private:
 
+	static std::string GetDirectory()
+    {
+        return std::string("sdmc:/")+CTRGame::Author+"/"+CTRGame::Name+"/";
+    }
+
     static string GetPath(CTRPathType typ, string path)
     {
         switch (typ)
         {
             case CTRPathType::Full:
-                return string;
+                return path;
             break;
             case CTRPathType::Root:
-                return string("sdmc:/")+string;
+                return string("sdmc:/")+path;
             break;
             case CTRPathType::Game:
-                MakePath(Log::GetDirectory());
-                return Log::GetDirectory() + path ;
+                MakePath(GetDirectory());
+                return GetDirectory() + path ;
             break;
         }
     }
@@ -65,9 +70,9 @@ public:
             inputFile.close();
             return full;
         } else {
-            return null;
+            return NULL;
         }
-        return null;
+        return NULL;
     }
 
     static string ReadTextBytes(string path, CTRPathType typ)
@@ -81,8 +86,8 @@ public:
             inputFile.close();
             return pngFileString;
         } else {
-            return null;
+            return NULL;
         }
-        return null;
+        return NULL;
     }
 };

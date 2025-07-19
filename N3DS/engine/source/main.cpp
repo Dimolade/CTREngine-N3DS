@@ -173,6 +173,8 @@ int main(int argc, char* argv[]) {
         {
             if (camera->AutoRender)
             {
+                camera->top = top;
+				camera->bottom = bottom;
                 camera->Render();
             }
         }

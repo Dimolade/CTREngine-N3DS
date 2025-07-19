@@ -10,6 +10,7 @@ class GameAsset;
 class CTRImage;
 class CTRImageFont;
 class CTRSound;
+class CTRCamera;
 
 class Scene {  // Added Scene class
 public:

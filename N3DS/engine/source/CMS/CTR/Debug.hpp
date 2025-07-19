@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include "../../Game.h"
 #include <sstream>
+#include "FileManager.hpp"
 
 class Log
 {

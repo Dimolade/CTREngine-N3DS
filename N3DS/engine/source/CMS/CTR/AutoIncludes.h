@@ -7,3 +7,5 @@
 #include "Debug.hpp"
 #include "../../Game.h"
 #include "Coroutiner.h"
+#include "FileManager.hpp"
+using CTRScissorMode = Enums::CTRScissorMode;

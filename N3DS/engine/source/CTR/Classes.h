@@ -13,11 +13,10 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
-#include "lodepng.h"
+#include "../CMS/CTR/lodepng.h"
 
 using namespace std;
 using namespace Vectors;
-using namespace Enums;
 
 class CTREntry;
 
@@ -68,7 +67,7 @@ public:
     Vector3 size;
     Vector3 rotation;
     CTRAxyz* Link;
-protected:
+public:
     Vector3 renderPosition;
     Vector3 renderSize;
     Vector3 renderRotation;
@@ -130,21 +129,27 @@ extern vector<CTRCamera*> CAMERAS;
 struct CTRScissor
 {
 public:
-    CTRScissorMode mode;
+    Enums::CTRScissorMode mode;
     Vector2 position;
     Vector2 dimensions;
 
     void Set()
     {
-        set_scissor(mode, position.x, position.y, dimensions.x, dimensions.y);
+        set_scissor_simple((GPU_SCISSORMODE)mode, position.x, position.y, dimensions.x, dimensions.y);
     }
 
-    CTRScissor(CTRScissorMode m, Vector2 pos, Vector2 dim) : mode(m), position(pos), dimensions(dim) {}
+    void SetNone()
+    {
+        set_scissor_simple(GPU_SCISSORMODE::GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+    }
+
+    CTRScissor(Enums::CTRScissorMode m, Vector2 pos, Vector2 dim) : mode(m), position(pos), dimensions(dim) {}
+    CTRScissor(int m, Vector2 pos, Vector2 dim) : mode(static_cast<Enums::CTRScissorMode>(m)), position(pos), dimensions(dim) {}
 
 private:
     void set_scissor(GPU_SCISSORMODE mode, int x, int y, int width, int height) {
-        int inv_y = SCREEN_HEIGHT - (y + height);
-        int inv_x = SCREEN_WIDTH - (x + width);
+        int inv_y = 400 - (y + height);
+        int inv_x = 240 - (x + width);
 
         C2D_Flush();
 
@@ -154,82 +159,17 @@ private:
             inv_y + height,    // right (Y max)
             inv_x + width    // bottom (X max)
         );
-    }
-};
+	}
+		
+	void set_scissor_simple(GPU_SCISSORMODE mode, int x, int y, int width, int height) {
+        C2D_Flush();
 
-class CTRCamera
-{
-public:
-    bool AutoRender = true;
-    Color color;
-    CTRScissor Scissoring;
-    Vector3 position;
-    Vector3 rotation;
-    Vector3 size;
-    string RenderSpace = "";
-
-    CTRCamera(Vector3 p, Vector3 s, Vector3 r, bool AR, Color c, CTRScissor s, string rs) :
-    AutoRender(AR), color(c), Scissoring(s), position(p), rotation(r), size(s), RenderSpace(rs) {}
-
-    void PrepareRender()
-    {
-        Scissoring.Set();
-        switch (screenIndex)
-        {
-            case 0: // upper screen
-                C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-                C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
-                C2D_SceneBegin(top);
-                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
-            break;
-            case 1:
-                C2D_TargetClear(bottom, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
-                C2D_SceneBegin(bottom);
-                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
-            break;
-        }
-    }
-
-    void Render()
-    {
-        PrepareRender();
-        for (GameAsset* asset : GameAssets) {
-            RenderObject(asset);
-        }
-    }
-
-    void RenderObject(GameAsset* asset)
-    {
-        if (asset->screenIndex != screenIndex)
-                return;
-        if (asset->Namespace.rfind(RenderSpace, 0) != 0 && RenderSpace != "")
-        {
-            return;
-        }
-        switch (asset->type) {
-            case Enums::AssetType::Image: {
-                CTRImage* image = static_cast<CTRImage*>(asset);
-                if (image) {
-                    image->UpdateLink();
-                    image->UpdateProperties();
-                    image->renderPosition += position;
-                    image->render();
-                }
-                break;
-            }
-
-            case Enums::AssetType::ImageFont: {
-                CTRImageFont* font = static_cast<CTRImageFont*>(asset);
-                if (font)
-                {
-                    font->UpdateLink();
-                    font->UpdateProperties();
-                    font->renderPosition += position;
-                    font->render();
-                }
-                break;
-            }
-        }
+        C3D_SetScissor(mode,
+            y+height,            // left (Y min) // 0
+            x+width,                // top (X min) // 0
+            240-y,    // right (Y max) //0
+            400-x    // bottom (X max) // 0
+        );
     }
 };
 
@@ -263,7 +203,9 @@ public:
         {
             assetPath = ("romfs:/snd/"+assetPath+".ogg");
         }
-        blobbyAudio.LoadClip(ap);
+        Log::Append("Trying to load Sound: "+assetPath+"\n");
+        Log::Save();
+        blobbyAudio.LoadClip(assetPath);
     }
 
     void SetClipPCM(const int16_t* pcmData, size_t sampleCount, int sampleRate = 22050, bool stereo = false)
@@ -447,19 +389,21 @@ struct TrackedSpriteSheet {
 
 class C2DImageLoaderC2D
 {
+public:
     static bool loadPngImage(C2D_Image* image, string path) {
         //char path[128] = "sdmc:/22.png";
         //snprintf(path, sizeof(path), "/3ds/switch/icons/%016llX.png", titleId);
 
         unsigned char* pngData = NULL;
         unsigned width = 0, height = 0;
-        unsigned error = lodepng_decode32(&pngData, &width, &height, path.data(), path.size());
+		const unsigned char* d = reinterpret_cast<const unsigned char*>(path.data()); 
+        unsigned error = lodepng_decode32(&pngData, &width, &height, d, path.size());
 
         if (error || pngData == NULL) {
             return false;
         }
 
-        if (width != ICON_WIDTH || height != ICON_HEIGHT) {
+        if (width != 256 || height != 256) {
             free(pngData);
             return false;
         }
@@ -474,13 +418,13 @@ class C2DImageLoaderC2D
         }
 
 
-        C3D_TexInit(tex, TEX_SIZE, TEX_SIZE, GPU_RGBA8);
+        C3D_TexInit(tex, 256, 256, GPU_RGBA8);
         C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
         tex->border = 0xFFFFFFFF;
 
         for (u32 y = 0; y < height; y++) {
             for (u32 x = 0; x < width; x++) {
-                u32 dstPos = ((((y >> 3) * (TEX_SIZE >> 3) + (x >> 3)) << 6) +
+                u32 dstPos = ((((y >> 3) * (256 >> 3) + (x >> 3)) << 6) +
                             ((x & 1) | ((y & 1) << 1) | ((x & 2) << 1) |
                             ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3))) * 4;
                 u32 srcPos = (y * width + x) * 4;
@@ -495,12 +439,12 @@ class C2DImageLoaderC2D
 
 
         *subtex = (Tex3DS_SubTexture){
-            .width  = ICON_WIDTH,
-            .height = ICON_HEIGHT,
+            .width  = 256,
+            .height = 256,
             .left   = 0.0f,
             .top    = 1.0f,
-            .right  = ICON_WIDTH / (float)TEX_SIZE,
-            .bottom = 1.0f - (ICON_HEIGHT / (float)TEX_SIZE)
+            .right  = 256 / (float)256,
+            .bottom = 1.0f - (256 / (float)256)
         };
 
         *image = (C2D_Image){ tex, subtex };
@@ -542,7 +486,7 @@ public:
         initSprite();
     }
 
-    public void ChangeSpriteFromPNG(string content)
+    void ChangeSpriteFromPNG(string content)
     {
         C2D_Image img;
         bool success = C2DImageLoaderC2D::loadPngImage(&img, content);
@@ -631,6 +575,84 @@ public:
         for (int i = 0; i < 4; ++i)
             tint.corners[i] = colorTint;
         return tint;
+    }
+};
+
+class CTRCamera
+{
+public:
+    bool AutoRender = true;
+    Color color;
+    CTRScissor Scissoring;
+    Vector3 position;
+    Vector3 rotation;
+    Vector3 size;
+    string RenderSpace = "";
+	int screenIndex = 0;
+	C3D_RenderTarget* top;
+	C3D_RenderTarget* bottom;
+
+    CTRCamera(Vector3 p, Vector3 s, Vector3 r, bool AR, Color c, CTRScissor sc, string rs, int sI = 0) :
+    AutoRender(AR), color(c), position(p), rotation(r), Scissoring(sc), size(s), RenderSpace(rs), screenIndex(sI) {}
+
+    void PrepareRender()
+    {
+        switch (screenIndex)
+        {
+            case 0: // upper screen
+                C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+                C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
+                C2D_SceneBegin(top);
+                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+            break;
+            case 1:
+                C2D_TargetClear(bottom, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f)); // Clear screen
+                C2D_SceneBegin(bottom);
+                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+            break;
+        }
+		Scissoring.Set();
+    }
+
+    void Render()
+    {
+        PrepareRender();
+        for (GameAsset* asset : GameAssets) {
+            RenderObject(asset);
+        }
+        Scissoring.SetNone();
+    }
+
+    void RenderObject(GameAsset* asset)
+    {
+        if (asset->screenIndex != screenIndex)
+                return;
+        if (asset->Namespace.rfind(RenderSpace, 0) != 0 && RenderSpace != "")
+        {
+            return;
+        }
+        switch (asset->type) {
+            case Enums::AssetType::Image: {
+                CTRImage* image = static_cast<CTRImage*>(asset);
+                if (image) {
+                    image->UpdateProperties();
+                    image->renderPosition += position;
+                    image->render();
+                }
+                break;
+            }
+
+            case Enums::AssetType::ImageFont: {
+                CTRImageFont* font = static_cast<CTRImageFont*>(asset);
+                if (font)
+                {
+                    font->UpdateProperties();
+                    font->renderPosition += position;
+                    font->render();
+                }
+                break;
+            }
+        }
     }
 };
 
