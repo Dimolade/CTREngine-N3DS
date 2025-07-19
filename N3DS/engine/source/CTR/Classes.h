@@ -306,6 +306,11 @@ public:
         blobbyAudio.SetVolume(volume);
     }
 
+    void SetLooping(bool l)
+    {
+        blobbyAudio.SetLooping(l);
+    }
+
     float GetStereo()
     {
         return blobbyAudio.GetPan();
@@ -319,6 +324,11 @@ public:
     float GetVolume()
     {
         return blobbyAudio.GetVolume();
+    }
+
+    bool IsLooping()
+    {
+        return blobbyAudio.IsLooping();
     }
 
     bool IsPlaying()

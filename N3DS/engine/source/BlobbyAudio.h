@@ -25,6 +25,7 @@ private:
     float volume = 1.0f;  // Default to full volume
     float speed =  1.0f;
     float stereoPan = 0.0f; // -1.0f = left, 1.0f = right
+    bool loop = false;
 
     long currentSampleIndex = 0; // sample index in the decoded stream
     bool paused = false;
@@ -57,9 +58,11 @@ public:
     void SetVolume(float vol);
     void SetSpeed(float s);
     void SetPan(float p);
+    void SetLooping(bool enabled) { loop = enabled; }
     float GetVolume() const { return volume; }
     float GetSpeed() const { return speed; }
     float GetPan() const { return stereoPan; }
+    bool IsLooping() const { return loop; }
 };
 
 #endif // BLOBBYAUDIO_H

@@ -265,7 +265,15 @@ bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
         int bytesToRead = std::min((int)(sizeof(tempDecodeBuf)),
                                    (int)((waveBuf->nsamples * sizeof(s16)) - totalBytes));
         int bytesRead = ov_read(&vorbisFile, (char*)tempDecodeBuf, bytesToRead, NULL);
-        if (bytesRead <= 0) return false;
+        if (bytesRead <= 0) {
+            if (loop) {
+                ov_pcm_seek(&vorbisFile, 0);
+                currentSampleIndex = 0;
+                continue;
+            } else {
+                return false;
+            }
+        }
 
         int samplesDecoded = bytesRead / sizeof(int16_t);
         currentSampleIndex += samplesDecoded;
@@ -278,7 +286,6 @@ bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
             float srcIndex = i * speed;
             int idx = static_cast<int>(srcIndex);
 
-            // Basic linear interpolation (optional: improve quality)
             if (idx + 1 < samplesDecoded) {
                 float frac = srcIndex - idx;
                 float s1 = tempDecodeBuf[idx];
