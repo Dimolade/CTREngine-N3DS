@@ -17,6 +17,8 @@ private:
     Thread audioThreadId = 0;
     LightEvent audioEvent;
     int16_t tempDecodeBuf[4096]; // adjust as needed
+    int16_t* resampleBuf = nullptr;
+	static const size_t MAX_RESAMPLE_SAMPLES = 65536;
     bool quit = false;
 
     ndspWaveBuf waveBufs[AUDIO_BUFFER_COUNT];

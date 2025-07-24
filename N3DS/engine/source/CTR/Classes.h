@@ -636,7 +636,7 @@ public:
                 CTRImage* image = static_cast<CTRImage*>(asset);
                 if (image) {
                     image->UpdateProperties();
-                    image->renderPosition += position;
+                    image->renderPosition -= position;
                     image->render();
                 }
                 break;
@@ -647,7 +647,7 @@ public:
                 if (font)
                 {
                     font->UpdateProperties();
-                    font->renderPosition += position;
+                    font->renderPosition -= position;
                     font->render();
                 }
                 break;

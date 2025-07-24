@@ -59,59 +59,33 @@ bool BlobbyAudio::LoadPCM(const std::vector<int16_t>& pcmData, int sampleRate, b
 }
 
 bool BlobbyAudio::LoadClip(const std::string& path) {
-	Log::Append("Loading Clip "+path+"\n");
-    Log::Save();
     Stop();
     freeResources();
-	Log::Append("Continue Loading Clip.\n");
-    Log::Save();
     int ch = allocateChannel();
     if (ch == -1) {
         printf("No free DSP channels available!\n");
-        Log::Append("No free DSP Channel available.\n");
-        Log::Save();
         return false;
     }
-	Log::Append("Set Channel.\n");
-    Log::Save();
     dspChannel = ch;
     fileHandle = fopen(path.c_str(), "rb");
     if (!fileHandle) {
         printf("Failed to open file: %s\n", path.c_str());
-        Log::Append("Failed to open "+path+"\n");
-        Log::Save();
         return false;
     }
-	
-	Log::Append("Opened File, opening ogg.\n");
-    Log::Save();
 
     int error = ov_open(fileHandle, &vorbisFile, NULL, 0);
-	Log::Append("Finish Ogg Open.\n");
-    Log::Save();
     if (error) {
         printf("Failed to decode Ogg Vorbis: %s\n", path.c_str());
         fclose(fileHandle);
-        Log::Append("Failed to decode Vorbis file.\n");
-        Log::Save();
         return false;
     }
 
-    Log::Append("No Errors so far, initting NDSP.\n");
-    Log::Save();
-
     bool fi = initNDSP();
-
-    if (!fi)
-    {
-        Log::Append("Failed initting NDSP.\n");
-        Log::Save();
-    }
-    else
-    {
-        Log::Append("Audio fully Loaded!\n");
-        Log::Save();
-    }
+	
+	for (int i = 0; i < AUDIO_BUFFER_COUNT; ++i) {
+		fillBuffer(&waveBufs[i]); // Pre-fill
+		ndspChnWaveBufAdd(dspChannel, &waveBufs[i]);
+	}
 
     return fi;
 }
@@ -125,15 +99,13 @@ bool BlobbyAudio::initNDSP() {
     ndspChnSetRate(dspChannel, vi->rate);
     ndspChnSetFormat(dspChannel, vi->channels == 1 ? NDSP_FORMAT_MONO_PCM16 : NDSP_FORMAT_STEREO_PCM16);
 
-    const size_t SAMPLES_PER_BUF = vi->rate * 128 / 1000; // 200ms per buffer
+    const size_t SAMPLES_PER_BUF = vi->rate * 120 / 1000; // ~200ms
     const size_t CHANNELS = vi->channels;
-    const size_t WAVEBUF_SIZE = SAMPLES_PER_BUF * CHANNELS * sizeof(s16);
+    const size_t WAVEBUF_SIZE = SAMPLES_PER_BUF * CHANNELS * sizeof(int16_t);
     const size_t bufferSize = WAVEBUF_SIZE * AUDIO_BUFFER_COUNT;
 
     audioBuffer = (int16_t*)linearAlloc(bufferSize);
     if (!audioBuffer) {
-        Log::Append("Failed to allocate audio buffer.\n");
-        Log::Save();
         printf("Failed to allocate audio buffer.\n");
         return false;
     }
@@ -143,10 +115,18 @@ bool BlobbyAudio::initNDSP() {
 
     for (int i = 0; i < AUDIO_BUFFER_COUNT; ++i) {
         waveBufs[i].data_vaddr = buffer;
-        waveBufs[i].nsamples = WAVEBUF_SIZE / sizeof(buffer[0]);
+        waveBufs[i].nsamples = WAVEBUF_SIZE / sizeof(int16_t);
         waveBufs[i].status = NDSP_WBUF_DONE;
+        buffer += WAVEBUF_SIZE / sizeof(int16_t);
+    }
 
-        buffer += WAVEBUF_SIZE / sizeof(buffer[0]);
+    size_t maxNeededSamples = (WAVEBUF_SIZE / sizeof(int16_t)) * 2;
+    resampleBuf = (int16_t*)linearAlloc(maxNeededSamples * sizeof(int16_t));
+    if (!resampleBuf) {
+        printf("Failed to allocate resample buffer.\n");
+        linearFree(audioBuffer);
+        audioBuffer = nullptr;
+        return false;
     }
 
     return true;
@@ -177,9 +157,13 @@ void BlobbyAudio::Play() {
     SetVolume(volume);
     SetPan(stereoPan);
 
-    int32_t priority = 0x20;
+    int32_t priority = 0x30;
     svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
-    priority = std::max(0x18, std::min(0x3F, static_cast<int>(priority - 1)));
+    // ... then subtract 1, as lower number => higher actual priority ...
+    priority -= 1;
+    // ... finally, clamp it between 0x18 and 0x3F to guarantee that it's valid.
+    priority = priority < 0x18 ? 0x18 : priority;
+    priority = priority > 0x3F ? 0x3F : priority;
 
     audioThreadId = threadCreate(AudioThreadFunc, this, THREAD_STACK_SIZE,
                                   priority, -1, false);
@@ -234,6 +218,11 @@ void BlobbyAudio::freeResources() {
         fclose(fileHandle);
         fileHandle = nullptr;
     }
+	
+	if (resampleBuf) {
+		linearFree(resampleBuf);
+		resampleBuf = nullptr;
+	}
 }
 
 void BlobbyAudio::AudioCallback(void* arg) {
@@ -288,22 +277,20 @@ void BlobbyAudio::AudioThreadFunc(void* arg) {
         }
         if (!didFill) {
             LightEvent_Wait(&self->audioEvent);
-            svcSleepThread(1000000); // sleep 1ms just in case
         }
     }
 }
 
 bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
-    if (currentSampleIndex >= 0) {
-        ov_pcm_seek(&vorbisFile, currentSampleIndex); // <-- resume point
-    }
+    // Remove redundant seek — only seek on loop or resume
     int totalBytes = 0;
-    int16_t* writePtr = waveBuf->data_pcm16;
+    int16_t* writePtr = static_cast<int16_t*>(const_cast<void*>(waveBuf->data_vaddr));
+    const size_t maxBytes = waveBuf->nsamples * sizeof(int16_t);
 
-    while (totalBytes < waveBuf->nsamples * sizeof(s16)) {
-        int bytesToRead = std::min((int)(sizeof(tempDecodeBuf)),
-                                   (int)((waveBuf->nsamples * sizeof(s16)) - totalBytes));
+    while (totalBytes < maxBytes) {
+        int bytesToRead = std::min((int)(sizeof(tempDecodeBuf)), (int)(maxBytes - totalBytes));
         int bytesRead = ov_read(&vorbisFile, (char*)tempDecodeBuf, bytesToRead, NULL);
+
         if (bytesRead <= 0) {
             if (loop) {
                 ov_pcm_seek(&vorbisFile, 0);
@@ -317,9 +304,12 @@ bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
         int samplesDecoded = bytesRead / sizeof(int16_t);
         currentSampleIndex += samplesDecoded;
 
-        // Apply speed scaling (resample by skipping or interpolating)
         int targetSamples = static_cast<int>(samplesDecoded / speed);
-        int16_t* resampledBuf = new int16_t[targetSamples];
+
+        // Ensure we don’t exceed buffer size
+        if (targetSamples > MAX_RESAMPLE_SAMPLES) {
+            targetSamples = MAX_RESAMPLE_SAMPLES;
+        }
 
         for (int i = 0; i < targetSamples; ++i) {
             float srcIndex = i * speed;
@@ -329,21 +319,27 @@ bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
                 float frac = srcIndex - idx;
                 float s1 = tempDecodeBuf[idx];
                 float s2 = tempDecodeBuf[idx + 1];
-                resampledBuf[i] = static_cast<int16_t>((s1 * (1.0f - frac) + s2 * frac) * volume);
+                resampleBuf[i] = static_cast<int16_t>((s1 * (1.0f - frac) + s2 * frac) * volume);
+            } else if (idx < samplesDecoded) {
+                resampleBuf[i] = static_cast<int16_t>(tempDecodeBuf[idx] * volume);
             } else {
-                resampledBuf[i] = static_cast<int16_t>(tempDecodeBuf[idx] * volume);
+                break; // Prevent over-read
             }
         }
 
         int chunkBytes = targetSamples * sizeof(int16_t);
-        memcpy((uint8_t*)writePtr + totalBytes, resampledBuf, chunkBytes);
-        totalBytes += chunkBytes;
 
-        delete[] resampledBuf;
+        // Avoid writing past the wave buffer
+        if (totalBytes + chunkBytes > maxBytes) {
+            chunkBytes = maxBytes - totalBytes;
+        }
+
+        memcpy((uint8_t*)writePtr + totalBytes, resampleBuf, chunkBytes);
+        totalBytes += chunkBytes;
     }
 
-    DSP_FlushDataCache(waveBuf->data_pcm16, totalBytes);
-    waveBuf->nsamples = totalBytes / sizeof(s16);
+    DSP_FlushDataCache(writePtr, totalBytes);
+    waveBuf->nsamples = totalBytes / sizeof(int16_t);
     ndspChnWaveBufAdd(dspChannel, waveBuf);
     return true;
 }
