@@ -6,7 +6,7 @@
 bool BlobbyAudio::channelUsed[24] = { false };
 
 BlobbyAudio::BlobbyAudio() {
-    LightEvent_Init(&audioEvent, RESET_ONESHOT);
+    //LightEvent_Init(&audioEvent, RESET_ONESHOT);
 }
 
 BlobbyAudio::~BlobbyAudio() {
@@ -14,28 +14,39 @@ BlobbyAudio::~BlobbyAudio() {
     freeResources();
 }
 
-bool BlobbyAudio::LoadPCM(const int16_t* pcmData, size_t sampleCount, int sampleRate, bool stereo) {
-    Stop();  // stop current playback
+bool BlobbyAudio::LoadPCMClip(const std::string& path, int sampleRate, bool stereo)
+{
+    Stop();
     freeResources();
+
+    FILE* f = fopen(path.c_str(), "rb");
+    if (!f) {
+        printf("Failed to open raw PCM file: %s\n", path.c_str());
+        return false;
+    }
+
+    fseek(f, 0, SEEK_END);
+    size_t fileSize = ftell(f);
+    rewind(f);
+
+    int sampleCount = fileSize / sizeof(int16_t);
+    audioBuffer = (int16_t*)linearAlloc(fileSize);
+    if (!audioBuffer) {
+        fclose(f);
+        printf("Failed to allocate audio buffer\n");
+        return false;
+    }
+
+    fread(audioBuffer, 1, fileSize, f);
+    fclose(f);
 
     int ch = allocateChannel();
     if (ch == -1) {
-        printf("No free DSP channels available!\n");
+        printf("No DSP channels available\n");
         return false;
     }
 
     dspChannel = ch;
-
-    size_t channels = stereo ? 2 : 1;
-    size_t byteCount = sampleCount * sizeof(int16_t);
-
-    audioBuffer = (int16_t*)linearAlloc(byteCount);
-    if (!audioBuffer) {
-        printf("Failed to allocate PCM audio buffer\n");
-        return false;
-    }
-
-    memcpy(audioBuffer, pcmData, byteCount);
 
     ndspChnReset(dspChannel);
     ndspSetOutputMode(NDSP_OUTPUT_STEREO);
@@ -47,19 +58,17 @@ bool BlobbyAudio::LoadPCM(const int16_t* pcmData, size_t sampleCount, int sample
     waveBufs[0].data_vaddr = audioBuffer;
     waveBufs[0].nsamples = sampleCount;
     waveBufs[0].status = NDSP_WBUF_DONE;
+    waveBufs[0].looping = loop;
 
-    DSP_FlushDataCache(audioBuffer, byteCount);
+    DSP_FlushDataCache(audioBuffer, fileSize);
     ndspChnWaveBufAdd(dspChannel, &waveBufs[0]);
 
     return true;
 }
 
-bool BlobbyAudio::LoadPCM(const std::vector<int16_t>& pcmData, int sampleRate, bool stereo) {
-    return LoadPCM(pcmData.data(), pcmData.size(), sampleRate, stereo);
-}
-
 bool BlobbyAudio::LoadClip(const std::string& path) {
-    Stop();
+    return LoadPCMClip(path, 48000, false);
+    /*Stop();
     freeResources();
     int ch = allocateChannel();
     if (ch == -1) {
@@ -87,10 +96,10 @@ bool BlobbyAudio::LoadClip(const std::string& path) {
 		ndspChnWaveBufAdd(dspChannel, &waveBufs[i]);
 	}
 
-    return fi;
+    return fi;*/
 }
 
-bool BlobbyAudio::initNDSP() {
+/*bool BlobbyAudio::initNDSP() {
     vorbis_info* vi = ov_info(&vorbisFile, -1);
 
     ndspChnReset(dspChannel);
@@ -130,7 +139,7 @@ bool BlobbyAudio::initNDSP() {
     }
 
     return true;
-}
+}*/
 
 int BlobbyAudio::allocateChannel() {
     for (int i = 0; i < 24; ++i) {
@@ -149,13 +158,15 @@ void BlobbyAudio::freeChannel(int ch) {
 }
 
 void BlobbyAudio::Play() {
-    if (!fileHandle) return;
+    if (!audioBuffer) return;
 
     paused = false;
     quit = false;
-    ndspSetCallback(AudioCallback, this);
+    //ndspSetCallback(AudioCallback, this);
     SetVolume(volume);
     SetPan(stereoPan);
+
+    /*return;
 
     int32_t priority = 0x30;
     svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
@@ -166,12 +177,12 @@ void BlobbyAudio::Play() {
     priority = priority > 0x3F ? 0x3F : priority;
 
     audioThreadId = threadCreate(AudioThreadFunc, this, THREAD_STACK_SIZE,
-                                  priority, -1, false);
+                                  priority, -1, false);*/
 }
 
 void BlobbyAudio::Stop() {
     // Stop the audio thread safely
-	Log::Append("Stop Called.\n");
+	/*Log::Append("Stop Called.\n");
     Log::Save();
     if (audioThreadId) {
         quit = true;
@@ -180,7 +191,7 @@ void BlobbyAudio::Stop() {
         threadJoin(audioThreadId, UINT64_MAX);
         threadFree(audioThreadId);
         audioThreadId = 0;
-    }
+    }*/
 
     // Reset current position and set to paused
     currentSampleIndex = 0;
@@ -207,14 +218,14 @@ bool BlobbyAudio::IsPlaying() {
 }
 
 void BlobbyAudio::freeResources() {
-	Log::Append("Freeing Resources.\n");
-    Log::Save();
+	/*Log::Append("Freeing Resources.\n");
+    Log::Save();*/
     if (audioBuffer) {
         linearFree(audioBuffer);
         audioBuffer = nullptr;
     }
 
-    if (fileHandle) {
+    /*if (fileHandle) {
         fclose(fileHandle);
         fileHandle = nullptr;
     }
@@ -222,13 +233,22 @@ void BlobbyAudio::freeResources() {
 	if (resampleBuf) {
 		linearFree(resampleBuf);
 		resampleBuf = nullptr;
-	}
+	}*/
 }
 
-void BlobbyAudio::AudioCallback(void* arg) {
+/*void BlobbyAudio::AudioCallback(void* arg) {
     auto* self = static_cast<BlobbyAudio*>(arg);
     if (!self->quit) {
         LightEvent_Signal(&self->audioEvent);
+    }
+}*/
+
+void BlobbyAudio::Update()
+{
+    if (loop && waveBufs[0].status == NDSP_WBUF_DONE)
+    {
+        waveBufs[0].status = NDSP_WBUF_DONE;
+        ndspChnWaveBufAdd(dspChannel, &waveBufs[0]);
     }
 }
 
@@ -251,13 +271,15 @@ void BlobbyAudio::SetPan(float pan) {
 
 void BlobbyAudio::SetVolume(float vol) {
     volume = vol;
+    SetPan(stereoPan);
 }
 
 void BlobbyAudio::SetSpeed(float s) {
     speed = std::max(0.01f, s); // avoid divide-by-zero or zero playback
+    ndspChnSetRate(dspChannel, 48000.0f * speed);
 }
 
-void BlobbyAudio::AudioThreadFunc(void* arg) {
+/*void BlobbyAudio::AudioThreadFunc(void* arg) {
     auto* self = static_cast<BlobbyAudio*>(arg);
 
     while (!self->quit) {
@@ -279,9 +301,9 @@ void BlobbyAudio::AudioThreadFunc(void* arg) {
             LightEvent_Wait(&self->audioEvent);
         }
     }
-}
+}*/
 
-bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
+/*bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
     // Remove redundant seek — only seek on loop or resume
     int totalBytes = 0;
     int16_t* writePtr = static_cast<int16_t*>(const_cast<void*>(waveBuf->data_vaddr));
@@ -342,4 +364,4 @@ bool BlobbyAudio::fillBuffer(ndspWaveBuf* waveBuf) {
     waveBuf->nsamples = totalBytes / sizeof(int16_t);
     ndspChnWaveBufAdd(dspChannel, waveBuf);
     return true;
-}
+}*/

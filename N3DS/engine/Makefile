@@ -33,17 +33,18 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES := $(shell find source -type d)
+SOURCES 	:=  $(shell find source -type d)
 DATA		:=	data
 INCLUDES	:=	include
 GRAPHICS	:=	gfx
 #GFXBUILD	:=	$(BUILD)
 ROMFS		:=	romfs
+SND_DIR 	:= romfs/snd
 GFXBUILD	:=	$(ROMFS)/gfx
-ICON	:= data/Icon.png
-APP_TITLE := $(shell cat $(TOPDIR)/data/name.txt)
+ICON		:= data/Icon.png
+APP_TITLE 	:= $(shell cat $(TOPDIR)/data/name.txt)
 APP_DESCRIPTION := $(shell cat $(TOPDIR)/data/description.txt)
-APP_AUTHOR := $(shell cat $(TOPDIR)/data/author.txt)
+APP_AUTHOR 	:= $(shell cat $(TOPDIR)/data/author.txt)
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -68,6 +69,16 @@ LIBS	:= -lcitro2d -lcitro3d -lctru -lm `$(PREFIX)pkg-config vorbisidec --libs`
 # include and lib
 #---------------------------------------------------------------------------------
 LIBDIRS	:= $(CTRULIB) $(PORTLIBS)
+
+AUDIO_SRC := $(wildcard $(SND_DIR)/*.ogg)
+
+# Replace extensions with .bin for the output
+AUDIO_BIN := $(patsubst $(SND_DIR)/%, $(SND_DIR)/%.bin, $(basename $(AUDIO_SRC)))
+
+# Conversion rule
+$(SND_DIR)/%.bin: $(SND_DIR)/%.ogg
+	@echo "Converting $< to $@"
+	ffmpeg -y -i "$<" -f s16le -acodec pcm_s16le -ac 1 -ar 48000 "$@"
 
 
 #---------------------------------------------------------------------------------
@@ -168,7 +179,7 @@ endif
 .PHONY: all clean
 
 #---------------------------------------------------------------------------------
-all: $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(T3XHFILES)
+all: $(AUDIO_BIN) $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(T3XHFILES)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 $(BUILD):

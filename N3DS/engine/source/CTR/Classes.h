@@ -201,14 +201,14 @@ public:
         }
         if (assetPath.rfind("romfs:/", 0) != 0)
         {
-            assetPath = ("romfs:/snd/"+assetPath+".ogg");
+            assetPath = ("romfs:/snd/"+assetPath+".bin");
         }
-        Log::Append("Trying to load Sound: "+assetPath+"\n");
-        Log::Save();
+        /*Log::Append("Trying to load Sound: "+assetPath+"\n");
+        Log::Save();*/
         blobbyAudio.LoadClip(assetPath);
     }
 
-    void SetClipPCM(const int16_t* pcmData, size_t sampleCount, int sampleRate = 22050, bool stereo = false)
+    /*void SetClipPCM(const int16_t* pcmData, size_t sampleCount, int sampleRate = 22050, bool stereo = false)
     {
         blobbyAudio.LoadPCM(pcmData, sampleCount, sampleRate, stereo);
     }
@@ -216,7 +216,7 @@ public:
     void SetClipPCM(const std::vector<int16_t>& pcmData, int sampleRate = 22050, bool stereo = false)
     {
         blobbyAudio.LoadPCM(pcmData, sampleRate, stereo);
-    }
+    }*/
 
     void Play()
     {
@@ -531,14 +531,7 @@ public:
         }
 
         assetPath = fullPath;
-        spriteSheet = TrackedSpriteSheet::GetOrCreate(assetPath);
-
-        if (!spriteSheet || spriteSheet->sheet == nullptr) {
-            Log::Append("Tried loading sprite: \"" + assetPath + "\", but it wasn't there.");
-            return;
-        }
-
-        C2D_SpriteFromSheet(&spr, spriteSheet->sheet, 0);
+        initSprite();
     }
 
     void render() {
@@ -582,6 +575,7 @@ class CTRCamera
 {
 public:
     bool AutoRender = true;
+    bool ZLayering = true;
     Color color;
     CTRScissor Scissoring;
     Vector3 position;
@@ -617,7 +611,43 @@ public:
     void Render()
     {
         PrepareRender();
+
+        std::vector<GameAsset*> renderables;
+
         for (GameAsset* asset : GameAssets) {
+            if (asset->screenIndex != screenIndex)
+                continue;
+            if (RenderSpace != "" && asset->Namespace.rfind(RenderSpace, 0) != 0)
+                continue;
+
+            if (asset->type == Enums::AssetType::Image || asset->type == Enums::AssetType::ImageFont)
+                renderables.push_back(asset);
+        }
+
+        if (ZLayering)
+        {
+
+            // Step 2: Sort renderables by z-position
+            std::sort(renderables.begin(), renderables.end(), [](GameAsset* a, GameAsset* b) {
+                float az = 0.0f;
+                float bz = 0.0f;
+
+                if (a->type == Enums::AssetType::Image)
+                    az = static_cast<CTRImage*>(a)->position.z;
+                else if (a->type == Enums::AssetType::ImageFont)
+                    az = static_cast<CTRImageFont*>(a)->position.z;
+
+                if (b->type == Enums::AssetType::Image)
+                    bz = static_cast<CTRImage*>(b)->position.z;
+                else if (b->type == Enums::AssetType::ImageFont)
+                    bz = static_cast<CTRImageFont*>(b)->position.z;
+
+                return az < bz;
+            });
+
+        }
+
+        for (GameAsset* asset : renderables) {
             RenderObject(asset);
         }
         Scissoring.SetNone();

@@ -13,7 +13,12 @@
 #include <vector>
 #include <3ds.h>
 
-#include "CMS/RenderTest.hpp"
+#include "CMS/ChapterSystem.hpp"
+#include "CMS/RoomSystem.hpp"
+#include "CMS/MainCode.hpp"
+#include "CMS/GameRender.hpp"
+#include "CMS/MellManager.hpp"
+#include "CMS/MellPlayer.hpp"
 
 
 // Dimolade File version 5
@@ -26,9 +31,14 @@ using namespace Vectors;
 
 std::vector<GameAsset*> GameAssets;
 void CTRScene::InitScene() {
-GameAssets.reserve(1);
+GameAssets.reserve(6);
 GameAssets = {
-new GameAsset(Enums::AssetType::Script, "RenderTest",true,"Script","Scripts",0)
+new GameAsset(Enums::AssetType::Script, "ChapterSystem",true,"ChapterSys","Scripts",0),
+new GameAsset(Enums::AssetType::Script, "Rooms",true,"RoomManager","Scripts",0),
+new GameAsset(Enums::AssetType::Script, "MainCode",true,"MainCode","Scripts",0),
+new GameAsset(Enums::AssetType::Script, "GameRender",true,"GameRenderer","Scripts",0),
+new GameAsset(Enums::AssetType::Script, "MellManager",true,"MellManager","Scripts",0),
+new GameAsset(Enums::AssetType::Script, "MellPlayer",true,"Mell","Scripts",0)
 };
 };
 
@@ -54,7 +64,7 @@ void initLibraries() {
     CTRScene::InitScene();
     CTRBlobbyFonts::InitFonts();
 
-    RenderTest* Script = new RenderTest();
+    MainCode* ChapterSys = new MainCode();
 
 
     for (GameAsset* asset : GameAssets) {

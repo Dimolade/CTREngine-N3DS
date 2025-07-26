@@ -2,7 +2,7 @@
 #define BLOBBYAUDIO_H
 
 #include <3ds.h>
-#include <tremor/ivorbisfile.h>
+//#include <tremor/ivorbisfile.h>
 #include <cstring>
 #include <stdio.h>
 #include <vector>
@@ -12,12 +12,12 @@
 
 class BlobbyAudio {
 private:
-    OggVorbis_File vorbisFile;
-    FILE* fileHandle = nullptr;
+    //OggVorbis_File vorbisFile;
+    //FILE* fileHandle = nullptr;
     Thread audioThreadId = 0;
     LightEvent audioEvent;
-    int16_t tempDecodeBuf[4096]; // adjust as needed
-    int16_t* resampleBuf = nullptr;
+    //int16_t tempDecodeBuf[4096]; // adjust as needed
+    //int16_t* resampleBuf = nullptr;
 	static const size_t MAX_RESAMPLE_SAMPLES = 65536;
     bool quit = false;
 
@@ -32,14 +32,14 @@ private:
     long currentSampleIndex = 0; // sample index in the decoded stream
     bool paused = false;
 
-    static void AudioCallback(void* arg);
-    static void AudioThreadFunc(void* arg);
+    //static void AudioCallback(void* arg);
+    //static void AudioThreadFunc(void* arg);
 
     int allocateChannel();
     void freeChannel(int ch);
 
-    bool fillBuffer(ndspWaveBuf* waveBuf);
-    bool initNDSP();
+    //bool fillBuffer(ndspWaveBuf* waveBuf);
+    //bool initNDSP();
     void freeResources();
     u8 dspChannel = 0; // default, will assign unique value
 
@@ -50,12 +50,12 @@ public:
     ~BlobbyAudio();
 
     bool LoadClip(const std::string& path);
-    bool LoadPCM(const int16_t* pcmData, size_t sampleCount, int sampleRate, bool stereo);
-    bool LoadPCM(const std::vector<int16_t>& pcmData, int sampleRate = 22050, bool stereo = false);
+    bool LoadPCMClip(const std::string& path, int sampleRate = 48000, bool stereo = false);
     void Play();
     void Pause();
     void Stop();
     bool IsPlaying();
+    void Update();
 
     void SetVolume(float vol);
     void SetSpeed(float s);

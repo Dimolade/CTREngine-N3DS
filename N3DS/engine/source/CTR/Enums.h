@@ -15,6 +15,10 @@ struct Vector2 {
     Vector2 operator+(Vector2 add) const {
         return {x+add.x, y+add.y};
     }
+	
+	Vector2 operator+=(Vector2 add) const {
+        return {x+add.x, y+add.y};
+    }
 
     Vector2 operator-(Vector2 add) const {
         return {x-add.x, y-add.y};
@@ -78,6 +82,9 @@ struct Vector3 {
 
     // Overload * operator to scale Vector3 by a scalar
     Vector3 operator*(float scalar) const {
+        return {x * scalar, y * scalar, z * scalar};
+    }
+    Vector3 operator*=(float scalar) const {
         return {x * scalar, y * scalar, z * scalar};
     }
 

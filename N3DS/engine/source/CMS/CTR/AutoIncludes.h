@@ -8,4 +8,5 @@
 #include "../../Game.h"
 #include "Coroutiner.h"
 #include "FileManager.hpp"
+#include "Math.hpp"
 using CTRScissorMode = Enums::CTRScissorMode;
